@@ -78,7 +78,7 @@ function arrowLabel(prev,next,d){ let mode='Chưa chốt cách chuyển — họ
 function procText(typ){
  if(typ.includes('Ký số')) return 'Xử lý: Người giữ vị trí tự đăng nhập bằng User cá nhân, tick xác nhận ký số. Hệ thống ghi người + thời gian ký. Ký xong khóa toàn bộ biểu mẫu, từ đây chỉ còn ký số. Người ký xong tự tick chuyển tiếp.';
  if(typ.includes('Ảnh')) return 'Xử lý: Không thao tác ký. Ảnh hiện theo tài khoản hoặc thông tin đã nhập, không phải bước ký riêng, không khóa form.';
- if(typ.includes('SignPad')) return 'Xử lý: Ký tay trên thiết bị SignPad. Họp cần xác nhận riêng cho từng biểu mẫu: ký mấy lần, chữ ký hiện mấy chỗ trên bản in, ký xong nội dung có khóa không, và ai tick chuyển sau bước này.';
+ if(typ.includes('SignPad')) return 'Xử lý: Ký tay trên thiết bị SignPad.';
  if(typ.includes('Tạo phiếu')) return 'Xử lý: Người tạo lập phiếu, điền thông tin. Đây là bước tạo, chưa phải bước ký.';
  if(typ.includes('Chuyển nhóm')||typ.includes('Chuyển theo nhóm')) return 'Xử lý: Phiếu vào danh sách chung của nhóm phụ trách, cả nhóm cùng theo dõi, không giao cho một cá nhân riêng lẻ.';
  if(typ.includes('Trình ký')){ if(typ.includes('khoa')) return 'Xử lý: Phiếu trình ký lãnh đạo khoa. Lãnh đạo khoa ký số ở bước sau.'; if(typ.includes('đơn vị')) return 'Xử lý: Phiếu trình ký lãnh đạo đơn vị. Lãnh đạo đơn vị ký số ở bước sau.'; return 'Xử lý: Phiếu trình lên lãnh đạo. Lãnh đạo ký số ở màn hình ký tập trung, có thể ký hàng loạt.'; }
