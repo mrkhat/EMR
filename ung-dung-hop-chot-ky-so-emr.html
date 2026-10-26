@@ -56,7 +56,7 @@ textarea{width:100%;min-height:60px;padding:8px;border:1px solid #ccc;border-rad
 <div class="controls">
 <input id="q" placeholder="Tìm theo tên, mã, ví dụ: 01/BV2, phẫu thuật, chăm sóc…">
 <button data-f="all" class="on">Xem tất cả biểu mẫu</button><button data-f="done">Xem biểu mẫu đã chốt</button><button data-f="todo">Xem biểu mẫu chưa chốt</button><button data-f="missing">Xem biểu mẫu Excel còn thiếu chức năng</button><button data-f="notes">Xem biểu mẫu có ghi chú họp</button>
-<button onclick="window.print()">In danh sách đang xem</button><button onclick="showProgress()">Xem mục quản lý yêu cầu kỹ thuật</button>
+<button onclick="window.print()">In danh sách đang xem</button><button onclick="showProgress()">Xem mục quản lý yêu cầu kỹ thuật</button><button onclick="showSave()">Xem phương án lưu dữ liệu</button>
 </div>
 <div id="detail"></div>
 <div class="list" id="list"></div>
@@ -71,22 +71,27 @@ const notes=JSON.parse(localStorage.getItem('emr_notes')||'{}');
 const flags=JSON.parse(localStorage.getItem('emr_flags')||'{}');
 let edits=JSON.parse(localStorage.getItem('emr_edits')||'{}');
 function mapType(t){t=t||''; if(t.includes('Ký số')) return 'Ký số'; if(t.includes('Ảnh')) return 'Ảnh chữ ký'; if(t.includes('SignPad')) return 'SignPad'; return t||'Chưa rõ';}
-function baseSteps(d){ if(d.steps) return JSON.parse(JSON.stringify(d.steps)); return d.signers.map(s=>({actor:s.actor,action:'',type:mapType(s.type),transfer:'',final:false})); }
+function baseSteps(d){ if(d.steps) return JSON.parse(JSON.stringify(d.steps)); return d.signers.map((s,idx,arr)=>({actor:s.actor,action:'',type:mapType(s.type),transfer:'',transfer_mode:(idx===arr.length-1?'Không chuyển sau bước này':'Chưa chốt'),final:false})); }
 function getForm(key){ const o=DATA.find(x=>x.key===key); const m={...o}; if(edits[key]){ m.steps=edits[key].steps; m.transfer=edits[key].transfer; m.decided=edits[key].decided; if(edits[key].software_status) m.software_status=edits[key].software_status; m.edited=true; } else { m.steps=baseSteps(o); } return m; }
 function pagesPdfUrl(d){ if(!d.pdf) return null; return 'https://mrkhat.github.io/EMR/PDF/'+encodeURIComponent(d.pdf); }
-function arrowLabel(prev,next,d){ let mode='Chưa chốt cách chuyển — họp quyết'; const tr=(next.transfer||d.transfer||''); if(tr.includes('nhóm')||tr.includes('NHÓM')) mode='Chuyển theo nhóm'; else if(tr.includes('Trình ký')) mode='Trình ký lên lãnh đạo'; else if(tr.includes('trực')) mode='Chuyển trực tiếp'; let extra=''; if((prev.type||'').includes('SignPad')) extra='<br>Người chuyển: nhân viên đang đánh máy / mở form.'; return '<div class="arrowlabel">Từ: <b>'+esc(prev.actor)+'</b><br>'+mode+'<br>Đến: <b>'+esc(next.actor)+'</b>'+extra+'</div>'; }
-function updateCounts(){ $('#cTotal').textContent=DATA.length; $('#cDone').textContent=DATA.filter(d=>getForm(d.key).decided).length; $('#cTodo').textContent=DATA.filter(d=>!getForm(d.key).decided).length; $('#cEdited').textContent=Object.keys(edits).length; }
-function badge(t){ if(t.includes('Ký số')) return '<span class="badge kyso">Ký số</span>'; if(t.includes('Ảnh')) return '<span class="badge anh">Ảnh chữ ký</span>'; if(t.includes('SignPad')) return '<span class="badge signpad">SignPad</span>'; if(t.includes('Chuyển nhóm')) return '<span class="badge anh">Chuyển nhóm</span>'; if(t.includes('Trình ký')) return '<span class="badge kyso">Trình ký</span>'; return '<span class="badge chua">'+t+'</span>'; }
+function arrowLabel(prev,next,d){ let mode='Chưa chốt cách chuyển — họp quyết'; if(kindOf(next)==='Bước chuyển'){ mode=transOf(next); } else if(kindOf(prev)==='Bước chuyển'){ mode=transOf(prev); } else { let raw=prev.transfer_mode||prev.transfer||next.transfer||''; if(raw==='Không chuyển sau bước này') mode='Không chuyển sau bước này'; else if(raw.includes('nhóm')||raw.includes('NHÓM')) mode='Chuyển theo nhóm'; else if(raw.includes('Trình ký')) mode=(raw.includes('khoa')?'Trình ký lãnh đạo khoa':'Trình ký lãnh đạo đơn vị'); else if(raw.includes('trực lãnh đạo')) mode='Chuyển trực lãnh đạo'; else if(raw.includes('trực')) mode='Chuyển trực tiếp'; else if(raw && raw!=='Chưa chốt') mode=raw; } let extra=''; if(d.key==='1' && (prev.actor||'').includes('Người bệnh') && sigOf(prev)==='SignPad') extra='<br>Người chuyển: nhân viên đang đánh máy / mở form.'; return '<div class="arrowlabel">Từ: <b>'+esc(prev.actor)+'</b><br>'+mode+'<br>Đến: <b>'+esc(next.actor)+'</b>'+extra+'</div>'; }
 function procText(typ){
  if(typ.includes('Ký số')) return 'Xử lý: Người giữ vị trí tự đăng nhập bằng User cá nhân, tick xác nhận ký số. Hệ thống ghi người + thời gian ký. Ký xong khóa toàn bộ biểu mẫu, từ đây chỉ còn ký số. Người ký xong tự tick chuyển tiếp.';
  if(typ.includes('Ảnh')) return 'Xử lý: Không thao tác ký. Ảnh hiện theo tài khoản hoặc thông tin đã nhập, không phải bước ký riêng, không khóa form.';
- if(typ.includes('SignPad')) return 'Xử lý: Người bệnh / thân nhân ký tay trên thiết bị SignPad, chỉ ký 1 lần, hiện 2 chỗ trên bản in. Sau bước này file PDF đã được sinh ra, nội dung không sửa được nữa, chỉ còn ký tiếp. Người chuyển sau bước này là nhân viên đang đánh máy / mở form, không phải người bệnh.';
+ if(typ.includes('SignPad')) return 'Xử lý: Ký tay trên thiết bị SignPad. Họp cần xác nhận riêng cho từng biểu mẫu: ký mấy lần, chữ ký hiện mấy chỗ trên bản in, ký xong nội dung có khóa không, và ai tick chuyển sau bước này.';
  if(typ.includes('Tạo phiếu')) return 'Xử lý: Người tạo lập phiếu, điền thông tin. Đây là bước tạo, chưa phải bước ký.';
- if(typ.includes('Chuyển nhóm')) return 'Xử lý: Phiếu vào danh sách chung của nhóm phụ trách, cả nhóm cùng theo dõi, không giao cho một cá nhân riêng lẻ.';
- if(typ.includes('Trình ký')) return 'Xử lý: Phiếu trình lên lãnh đạo. Lãnh đạo ký số ở màn hình ký tập trung, có thể ký hàng loạt.';
+ if(typ.includes('Chuyển nhóm')||typ.includes('Chuyển theo nhóm')) return 'Xử lý: Phiếu vào danh sách chung của nhóm phụ trách, cả nhóm cùng theo dõi, không giao cho một cá nhân riêng lẻ.';
+ if(typ.includes('Trình ký')){ if(typ.includes('khoa')) return 'Xử lý: Phiếu trình ký lãnh đạo khoa. Lãnh đạo khoa ký số ở bước sau.'; if(typ.includes('đơn vị')) return 'Xử lý: Phiếu trình ký lãnh đạo đơn vị. Lãnh đạo đơn vị ký số ở bước sau.'; return 'Xử lý: Phiếu trình lên lãnh đạo. Lãnh đạo ký số ở màn hình ký tập trung, có thể ký hàng loạt.'; }
+ if(typ.includes('Chuyển trực lãnh đạo')) return 'Xử lý: Phiếu chuyển trực tiếp lên lãnh đạo để xin ý kiến. Lãnh đạo ký số ở bước sau.';
  if(typ.includes('Chuyển trực tiếp')) return 'Xử lý: Phiếu chuyển trực tiếp cho người dùng cụ thể được chỉ định.';
  return 'Xử lý: Chưa rõ loại — họp cần xác nhận loại chữ ký và cách xử lý cho vị trí này.';
 }
+
+function kindOf(s){ const ty=s.type||''; if(ty.includes('Chuyển')||ty.includes('Trình ký')||s.actor==='Chuyển ký') return 'Bước chuyển'; if(ty.includes('Tạo phiếu')) return 'Tạo phiếu'; return 'Bước ký'; }
+function sigOf(s){ const ty=s.type||''; if(ty.includes('Ký số')) return 'Ký số'; if(ty.includes('Ảnh')) return 'Ảnh chữ ký'; if(ty.includes('SignPad')||ty.includes('Signpad')) return 'SignPad'; if(ty.includes('Tên')||ty.includes('chỉ ghi tên')) return 'Chỉ ghi tên'; if(ty==='Chưa rõ') return 'Chưa rõ'; return ty; }
+function transOf(s){ const m=s.transfer_mode||''; if(m && m!=='Chưa chốt' && m!=='Không chuyển sau bước này') return m; const ty=s.type||''; const tr=s.transfer||''; if(ty.includes('Chuyển nhóm')||tr.includes('nhóm')||tr.includes('NHÓM')) return 'Chuyển theo nhóm'; if(ty.includes('Chuyển trực lãnh đạo')||tr.includes('trực lãnh đạo')) return 'Chuyển trực lãnh đạo'; if(ty.includes('Chuyển trực tiếp')||tr.includes('trực')) return 'Chuyển trực tiếp'; if(ty.includes('Trình ký')||tr.includes('Trình ký')){ if(tr.includes('khoa')) return 'Trình ký lãnh đạo khoa'; if(tr.includes('đơn vị')) return 'Trình ký lãnh đạo đơn vị'; return 'Trình ký lãnh đạo đơn vị'; } if(m) return m; return 'Chưa chốt'; }
+function stepBadge(s){ const k=kindOf(s); if(k==='Bước chuyển') return '<span class="badge anh">Bước chuyển: '+esc(transOf(s))+'</span>'; if(k==='Tạo phiếu') return '<span class="badge chua">Tạo phiếu</span>'; return badge(sigOf(s)); }
+function procTextFor(d,s){ if(d.key==='1' && (s.actor||'').includes('Người bệnh') && sigOf(s)==='SignPad') return 'Xử lý (ghi chú riêng cho biểu mẫu 01/BV2, vị trí người bệnh): Người bệnh / thân nhân ký tay trên thiết bị SignPad, chỉ ký 1 lần, hiện 2 chỗ trên bản in. Sau bước này file PDF đã được sinh ra, nội dung không sửa được nữa, chỉ còn ký tiếp. Người chuyển sau bước này là nhân viên đang đánh máy / mở form, không phải người bệnh.'; const k=kindOf(s); if(k==='Bước chuyển') return procText(transOf(s)); if(k==='Tạo phiếu') return procText('Tạo phiếu'); return procText(sigOf(s)); }
 function orderWarnings(steps){
  const w=[]; let seenDigital=false;
  steps.forEach((s,i)=>{ if(s.type.includes('Ký số')) seenDigital=true; else if(seenDigital && s.type.includes('SignPad')) w.push('Cảnh báo thứ tự ở bước '+(i+1)+' ('+s.actor+'): sau một bước ký số, biểu mẫu đã khóa, không thể ký SignPad sau đó. Cần đổi thứ tự trong họp: SignPad phải đứng trước bước ký số đầu tiên.'); });
@@ -107,15 +112,17 @@ function render(){
  });
  $('#list').innerHTML=rows.map(d=>`<div class="row ${d.decided?'decided':''}" onclick="show('${d.key}')">
   <h3>${d.stt} — ${esc(d.ten)} ${d.ma?('('+d.ma+')'):''} ${d.decided?'<span class="badge kyso">Đã chốt</span>':'<span class="badge chua">Chưa chốt</span>'} ${d.edited?'<span class="badge chua">Đã sửa trong họp</span>':''} ${flags[d.key]?'<span class="badge signpad">Cần lưu ý</span>':''}</h3>
-  <div class="meta">PDF: ${d.pdf||'— chưa có'} · Phạm vi: ${d.phamvi||'—'} · Cách chuyển: ${d.transfer||'Chưa chốt'} · Trạng thái Excel: ${d.excel_status||'—'}</div>
-  <div>${d.steps.map(s=>esc(s.actor)+' '+badge(s.type)).join(' · ')||'Chưa có người ký trong Excel'}</div></div>`).join('')||'<p>Không có biểu mẫu nào khớp bộ lọc.</p>';
+  <div class="meta">PDF: ${d.pdf||'— chưa có'} · Phạm vi: ${d.phamvi||'—'} · Trạng thái Excel: ${d.excel_status||'—'}</div>
+  <div>${d.steps.map(s=>esc(s.actor)+' '+stepBadge(s)).join(' · ')||'Chưa có người ký trong Excel'}</div></div>`).join('')||'<p>Không có biểu mẫu nào khớp bộ lọc.</p>';
  $('#cTotal').textContent=DATA.length;
  $('#cDone').textContent=DATA.filter(d=>getForm(d.key).decided).length;
  $('#cTodo').textContent=DATA.filter(d=>!getForm(d.key).decided).length;
  $('#cEdited').textContent=Object.keys(edits).length;
 }
-const TYPES=['Ký số','Ảnh chữ ký','SignPad','Tạo phiếu','Chuyển nhóm','Chuyển trực tiếp','Trình ký','Chưa rõ'];
-const TRANSFERS=['Chưa chốt','Chuyển theo nhóm','Chuyển trực tiếp','Trình ký lên lãnh đạo','Chuyển trực lãnh đạo'];
+const SIG_METHODS=['Ký số','Ảnh chữ ký','SignPad','Chưa rõ'];
+const TRANSFER_STEPS=['Chuyển theo nhóm','Chuyển trực tiếp','Trình ký lãnh đạo khoa','Trình ký lãnh đạo đơn vị','Chuyển trực lãnh đạo'];
+const TYPES=SIG_METHODS;
+const TRANSFERS=['Chưa chốt','Chuyển theo nhóm','Chuyển trực tiếp','Trình ký lãnh đạo khoa','Trình ký lãnh đạo đơn vị','Chuyển trực lãnh đạo'];
 function show(key){
  curKey=key; editMode=false; curEdit=getForm(key);
  // curEdit.steps already merged; keep a working copy
@@ -126,23 +133,23 @@ function renderDetail(){
  const d=curEdit; if(!d) return;
  let stepsHtml='';
  if(editMode){
-  stepsHtml=d.steps.map((s,i)=>`<div class="step ${s.final?'final':''} ${d.decided?'decided':''}"><b>Vị trí ${i+1}</b>
+  stepsHtml=d.steps.map((s,i)=>`<div class="step ${s.final?'final':''} ${d.decided?'decided':''}"><b>Bước ${i+1}</b>
    <input value="${esc(s.actor)}" oninput="upd(${i},'actor',this.value)" placeholder="Ai ký — vị trí, ví dụ: Bác sĩ gây mê">
    <input value="${esc(s.action)}" oninput="upd(${i},'action',this.value)" placeholder="Làm gì ở bước này">
-   <select onchange="upd(${i},'type',this.value)">${TYPES.map(t=>`<option ${t===s.type?'selected':''}>${t}</option>`).join('')}</select><div id="proc-${i}" style="font-size:13px;color:#555"><i>${procText(s.type)}</i></div>
+   <label>Loại bước:</label><select onchange="updKind(${i},this.value)">${['Bước ký','Bước chuyển','Tạo phiếu'].map(k=>`<option ${k===kindOf(s)?'selected':''}>${k}</option>`).join('')}</select><br>${kindOf(s)==='Bước ký'?`<label>Phương thức sử dụng chữ ký:</label><select onchange="upd(${i},'type',this.value)">${SIG_METHODS.map(t=>`<option ${t===sigOf(s)?'selected':''}>${t}</option>`).join('')}</select>`:kindOf(s)==='Bước chuyển'?`<label>Cách chuyển:</label><select onchange="updTransStep(${i},this.value)">${TRANSFER_STEPS.map(t=>`<option ${t===transOf(s)?'selected':''}>${t}</option>`).join('')}</select>`:`<span>Bước tạo phiếu, chưa phải bước ký.</span>`}<br>${kindOf(s)==='Bước ký'?`<label>Chuyển sau bước này sang bước tiếp theo bằng cách:</label><select onchange="updTransferMode(${i},this.value)">${['Chưa chốt','Chuyển theo nhóm','Chuyển trực tiếp','Trình ký lãnh đạo khoa','Trình ký lãnh đạo đơn vị','Chuyển trực lãnh đạo','Không chuyển sau bước này'].map(x=>`<option ${x===(s.transfer_mode||'Chưa chốt')?'selected':''}>${x}</option>`).join('')}</select>`:''}<div id="proc-${i}" style="font-size:13px;color:#555"><i>${procTextFor(d,s)}</i></div>
    <label><input type="checkbox" ${s.final?'checked':''} onchange="upd(${i},'final',this.checked)" style="width:auto"> Bước cuối — chốt</label><br>
-   <button onclick="moveStep(${i},-1)">Chuyển vị trí này lên trước</button> <button onclick="moveStep(${i},1)">Chuyển vị trí này xuống sau</button> <button onclick="delStep(${i})">Xóa vị trí này</button><br><label>Ghi chú cho bước này:</label><textarea oninput="updStepNote(${i},this.value)" placeholder="Diễn giải thêm cho bước này">${esc(s.note||'')}</textarea></div>${i<d.steps.length-1?arrowLabel(s,d.steps[i+1],d):''}`).join('');
+   <button onclick="moveStep(${i},-1)">Chuyển bước này lên trước</button> <button onclick="moveStep(${i},1)">Chuyển bước này xuống sau</button> <button onclick="delStep(${i})">Xóa bước này</button><br><label>Ghi chú cho bước này:</label><textarea oninput="updStepNote(${i},this.value)" placeholder="Diễn giải thêm cho bước này">${esc(s.note||'')}</textarea></div>${i<d.steps.length-1?arrowLabel(s,d.steps[i+1],d):''}`).join('');
  } else {
-  stepsHtml=d.steps.map((s,i)=>`<div class="step ${s.final?'final':''} ${!d.decided?'undecided':''} ${d.decided?'decided':''}"><b>Bước ${i+1}</b><br><b>${esc(s.actor)}</b><br>${esc(s.action)}<br>${badge(s.type)}${s.final?'<br><b>★ BƯỚC CUỐI — CHỐT</b>':''}${s.transfer?'<br><i>'+esc(s.transfer)+'</i>':''}${'<br><i>'+procText(s.type)+'</i>'}<br><label>Ghi chú cho bước này:</label><textarea oninput="updStepNote(${i},this.value)" placeholder="Diễn giải thêm cho bước này">${esc(s.note||'')}</textarea></div>${i<d.steps.length-1?arrowLabel(s,d.steps[i+1],d):''}`).join('')||'<p>Chưa có người ký — họp cần xác nhận từ đầu.</p>';
+  stepsHtml=d.steps.map((s,i)=>`<div class="step ${s.final?'final':''} ${!d.decided?'undecided':''} ${d.decided?'decided':''}"><b>Bước ${i+1} — ${kindOf(s)}</b><br><b>${esc(s.actor)}</b><br>${esc(s.action)}<br>${stepBadge(s)}${kindOf(s)==='Bước ký'?'<br><b>Phương thức sử dụng chữ ký:</b> '+esc(sigOf(s)):kindOf(s)==='Bước chuyển'?'<br><b>Cách chuyển:</b> '+esc(transOf(s)):''}${s.final?'<br><b>★ BƯỚC CUỐI — CHỐT</b>':''}${s.transfer?'<br><i>'+esc(s.transfer)+'</i>':''}${'<br><i>'+procTextFor(d,s)+'</i>'}${kindOf(s)==='Bước ký'&&(s.transfer_mode||!d.decided)?'<br><b>Chuyển sau bước này:</b> '+esc(s.transfer_mode||'Chưa chốt cách chuyển sau bước này — họp quyết'):''}<br><label>Ghi chú cho bước này:</label><textarea oninput="updStepNote(${i},this.value)" placeholder="Diễn giải thêm cho bước này">${esc(s.note||'')}</textarea></div>${i<d.steps.length-1?arrowLabel(s,d.steps[i+1],d):''}`).join('')||'<p>Chưa có người ký — họp cần xác nhận từ đầu.</p>';
  }
  $('#detail').style.display='block';
  $('#detail').innerHTML=`<h2>${d.stt} — ${esc(d.ten)} ${d.ma?('('+d.ma+')'):''} ${d.decided?'<span class="badge kyso">Đã chốt</span>':'<span class="badge chua">Chưa chốt</span>'}</h2>
  <p>File PDF: ${pagesPdfUrl(d)?`<button onclick="openPdfModal()">Mở PDF trong trang</button> ${esc(d.pdf)}`:'Chưa có PDF — chỉ có trong biên bản Word'} · Phạm vi: ${d.phamvi||'—'}</p> <p>Trạng thái phần mềm của biểu mẫu này xem ở mục quản lý yêu cầu kỹ thuật bên dưới (ghi nhận riêng, chưa đối chiếu 1-1 với danh sách này).</p>
  <p><b>${esc(d.note_decision||('Trạng thái Excel: '+d.excel_status))}</b></p><div id="warnBox"></div>
- <p>Cách chuyển cho cả biểu mẫu: <select onchange="updTransfer(this.value)">${TRANSFERS.map(t=>`<option ${t===d.transfer?'selected':''}>${t}</option>`).join('')}</select></p>
+ <p>Bước chuyển (chuyển theo nhóm, chuyển trực tiếp, trình ký lãnh đạo khoa, trình ký lãnh đạo đơn vị) là bước riêng, tách khỏi phương thức sử dụng chữ ký (ký số, ảnh chữ ký, SignPad) của từng vị trí ký.</p>
  <div class="flow">${stepsHtml}</div>
- <div class="quickadd"><b>Thêm vị trí ký nhanh:</b> <input id="qaName" placeholder="Tên vị trí ký, ví dụ: Bác sĩ gây mê"> <select id="qaType">${TYPES.map(t=>`<option>${t}</option>`).join('')}</select> <button class="primary" onclick="quickAdd()">Thêm vị trí ký</button> <span style="font-size:13px;color:#555">Thêm xong tự lưu trên máy họp khi bấm Lưu thay đổi, con trỏ quay về ô tên để thêm tiếp.</span></div>
- <button class="primary" onclick="toggleEdit()">${editMode?'Xem sơ đồ (tắt sửa)':'Sửa tên, loại và thứ tự từng vị trí ký'}</button>
+ <div class="quickadd"><b>Thêm bước nhanh:</b> <input id="qaName" placeholder="Tên vị trí hoặc bước chuyển, ví dụ: Bác sĩ gây mê"> <select id="qaKind" onchange="qaKindChange()"><option>Bước ký</option><option>Bước chuyển</option><option>Tạo phiếu</option></select> <select id="qaType">${SIG_METHODS.map(t=>`<option>${t}</option>`).join('')}</select> <button class="primary" id="qaBtn" onclick="quickAdd()">Thêm vị trí ký</button> <span style="font-size:13px;color:#555">Thêm xong tự lưu trên máy họp khi bấm Lưu thay đổi, con trỏ quay về ô tên để thêm tiếp.</span></div>
+ <button class="primary" onclick="toggleEdit()">${editMode?'Xem sơ đồ (tắt sửa)':'Sửa tên, loại bước và thứ tự từng bước'}</button>
  <button class="primary" onclick="saveCurrent()">Lưu thay đổi — chỉ lưu trên máy này</button>
  <button onclick="markDecided()">Đánh dấu: ĐÃ CHỐT vấn đề này trong họp</button>
  <button onclick="resetCurrent()">Khôi phục gốc (Excel + biên bản 23/10)</button>
@@ -152,17 +159,23 @@ function renderDetail(){
  const wb=document.getElementById('warnBox'); if(wb){ const ws=orderWarnings(d.steps); wb.innerHTML=ws.length?('<div style="background:#fffbe6;border:1px solid #eab308;border-radius:8px;padding:10px">'+ws.map(w=>'<p>⚠ '+w+'</p>').join('')+'</div>'):''; }
  const de=document.getElementById('detail'); if(de) de.scrollIntoView({block:'nearest'});
 }
-function upd(i,f,v){ curEdit.steps[i][f]=v; const el=document.getElementById('proc-'+i); if(el && f==='type') el.innerHTML='<i>'+procText(v)+'</i>'; }
+function upd(i,f,v){ curEdit.steps[i][f]=v; const el=document.getElementById('proc-'+i); if(el && f==='type') el.innerHTML='<i>'+procTextFor(curEdit,curEdit.steps[i])+'</i>'; }
+function updKind(i,k){ const s=curEdit.steps[i]; if(k==='Bước chuyển'){ s.type='Chuyển theo nhóm'; s.transfer_mode=''; } else if(k==='Tạo phiếu'){ s.type='Tạo phiếu'; s.transfer_mode=''; } else { s.type='Ký số'; } renderDetail(); }
+function updTransStep(i,v){ const s=curEdit.steps[i]; s.type=v; s.transfer_mode=''; renderDetail(); }
+function updTransferMode(i,v){ curEdit.steps[i].transfer_mode=v; }
 function updTransfer(v){ curEdit.transfer=v; }
 function toggleEdit(){ editMode=!editMode; renderDetail(); }
 function moveStep(i,dir){ const j=i+dir; if(j<0||j>=curEdit.steps.length) return; const t=curEdit.steps[i]; curEdit.steps[i]=curEdit.steps[j]; curEdit.steps[j]=t; renderDetail(); }
 function delStep(i){ if(!confirm('Xóa vị trí này khỏi luồng ký?')) return; curEdit.steps.splice(i,1); renderDetail(); }
 function addStep(){ curEdit.steps.push({actor:'Vị trí mới',action:'',type:'Ký số',transfer:'',final:false}); renderDetail(); }
 function updStepNote(i,v){ curEdit.steps[i].note=v; }
-function quickAdd(){ const n=document.getElementById('qaName'); const ty=document.getElementById('qaType'); curEdit.steps.push({actor:(n&&n.value.trim())||'Vị trí mới',action:'',type:ty?ty.value:'Ký số',transfer:'',final:false}); renderDetail(); setTimeout(()=>{const q=document.getElementById('qaName'); if(q) q.focus();},0); }
+function qaKindChange(){ const k=document.getElementById('qaKind'); const ty=document.getElementById('qaType'); const b=document.getElementById('qaBtn'); if(!ty||!k) return; const opts=(k.value==='Bước chuyển'?TRANSFER_STEPS:(k.value==='Tạo phiếu'?['—']:SIG_METHODS)); ty.innerHTML=opts.map(t=>`<option>${t}</option>`).join(''); if(b) b.textContent=(k.value==='Bước chuyển'?'Thêm bước chuyển':(k.value==='Tạo phiếu'?'Thêm bước tạo phiếu':'Thêm vị trí ký')); }
+function quickAdd(){ const n=document.getElementById('qaName'); const k=document.getElementById('qaKind'); const ty=document.getElementById('qaType'); const kind=k?k.value:'Bước ký'; const val=ty?ty.value:'Ký số'; curEdit.steps.push({actor:(n&&n.value.trim())||(kind==='Bước chuyển'?'Bước chuyển mới':'Vị trí mới'),action:'',type:(kind==='Tạo phiếu'?'Tạo phiếu':val),transfer:'',transfer_mode:(kind==='Bước ký'?'Chưa chốt':''),final:false}); renderDetail(); setTimeout(()=>{const q=document.getElementById('qaName'); if(q) q.focus();},0); }
 function openPdfModal(){ const d=curEdit; const u=pagesPdfUrl(d); if(!u) return; const m=document.getElementById('pdfModal'); document.getElementById('pdfFrame').src=u; document.getElementById('pdfTitle').textContent=d.ten; document.getElementById('pdfDl').href=u; m.classList.add('open'); }
 function closePdfModal(){ const m=document.getElementById('pdfModal'); document.getElementById('pdfFrame').src=''; m.classList.remove('open'); }
 function showProgress(){ const el=document.getElementById('progress'); el.style.display='block'; el.scrollIntoView({block:'start'}); renderProgress(); }
+function showSave(){ const el=document.getElementById('saveData'); el.style.display='block'; el.scrollIntoView({block:'start'}); }
+function downloadSaveTxt(){ let lines=[]; lines.push('Tóm tắt quyết định họp chốt ký số EMR'); lines.push('Tổng: '+DATA.length+' biểu mẫu, đã chốt: '+DATA.filter(d=>getForm(d.key).decided).length+', chưa chốt: '+DATA.filter(d=>!getForm(d.key).decided).length); lines.push(''); DATA.forEach(d=>{ const f=getForm(d.key); const hasNote=!!notes[d.key]; const hasFlag=!!flags[d.key]; if(!f.decided && !f.edited && !hasNote && !hasFlag) return; lines.push((f.stt||'')+' — '+f.ten+(f.ma?' ('+f.ma+')':'')); lines.push('Trạng thái họp: '+(f.decided?'Đã chốt':'Chưa chốt')+(f.edited?' (đã sửa trong họp)':'')+(hasFlag?' (cần lưu ý)':'')); f.steps.forEach((s,i)=>{ lines.push('  Bước '+(i+1)+' — '+kindOf(s)+': '+s.actor+(s.action?' — '+s.action:'')+(kindOf(s)==='Bước ký'?' — Phương thức sử dụng chữ ký: '+sigOf(s):kindOf(s)==='Bước chuyển'?' — Cách chuyển: '+transOf(s):'')+(s.final?' — BƯỚC CUỐI':'')); if(s.note) lines.push('    Ghi chú bước: '+s.note); }); if(hasNote) lines.push('  Ghi chú họp: '+notes[d.key]); lines.push(''); }); const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tom-tat-quyet-dinh-hop-emr.txt'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
 function renderProgress(){ const q=((document.getElementById('pq')||{}).value||'').toLowerCase(); const rows=PROGRESS.filter(r=>!q||((r.ten||'')+' '+(r.trinhdon||'')+' '+(r.bv20||'')+' '+(r.bv30||'')).toLowerCase().includes(q)); document.getElementById('progList').innerHTML=rows.map(r=>`<div class="prog"><h3>${r.stt||'—'} — ${esc(r.ten||'Ghi chú chung')}</h3><div class="meta">Trình đơn: ${esc(r.trinhdon||'—')}<br>Hiện trạng: ${esc(r.hientrang||'—')}<br>Trạng thái 20/10 (BV): ${esc(r.bv20||'—')}<br>Trạng thái 30/09 (BV): ${esc(r.bv30||'—')}<br>Trạng thái 20/10 (FPT): ${esc(r.fpt20||'—')}<br>Trạng thái 30/9 (FPT): ${esc(r.fpt30||'—')}<br>Project cần build: ${esc(r.project||'—')}</div></div>`).join('')||'<p>Không có yêu cầu nào khớp.</p>'; }
 function saveCurrent(){
  const note=$('#note')?$('#note').value:''; if(note!==undefined) {notes[curKey]=note; localStorage.setItem('emr_notes',JSON.stringify(notes));}
@@ -178,13 +191,23 @@ document.querySelectorAll('.controls button[data-f]').forEach(b=>b.onclick=()=>{
 $('#q').oninput=render;
 render();
 </script>
-<p style="color:#555">Bản final — 27/10/2026 · 84 biểu mẫu · 38 đã chốt (5 chốt 23/10 + 33 tự chốt 1 chữ ký) · 46 chưa chốt · Ô đã chốt tô màu xanh.</p>
+<p style="color:#555">Bản final — 27/10/2026 · 84 biểu mẫu · 38 đã chốt (5 chốt 23/10 + 33 tự chốt 1 chữ ký) · 46 chưa chốt · Ô đã chốt tô màu xanh · Cách chuyển chọn riêng cho từng bước, không áp cho cả biểu mẫu · Bước chuyển tách khỏi phương thức sử dụng chữ ký · Ghi chú SignPad riêng của 01/BV2 chỉ áp cho vị trí người bệnh ở phiếu đó.</p>
 <div class="wrap" id="progress" style="display:none">
 <h2>Quản lý riêng: yêu cầu kỹ thuật và tiến độ xử lý</h2>
 <p><b>Ghi nhận trước, chưa đối chiếu 1-1 với danh sách 84 biểu mẫu ở trên.</b> Nội dung trong mục này lấy từ file tiến độ xử lý (TrangThaiYeuCauEMR.xlsx, trạng thái 30/09 và 20/10), có thể không khớp hẳn với tên và số lượng biểu mẫu trong bảng họp, vì file tiến độ gom theo nhóm chức năng / trình đơn. Mục này chỉ để theo dõi tiến độ đội phần mềm và chức năng đã hoạt động được chưa, không tự gán trạng thái phần mềm cho từng biểu mẫu trong bảng họp.</p>
 <p>Nguồn tham khảo bổ sung: file Word trên Git — <a href="https://github.com/mrkhat/EMR/blob/main/Ban%20hanh%20quy%20che%20chu%20ky%20so%209.2025.docx">Ban hanh quy che chu ky so 9.2025.docx</a> — là các biểu mẫu cuối cùng phải làm theo Thông tư 32, có đối chiếu theo thông tư / nghị định và số chân ký, dùng để bổ sung làm rõ nội dung từng phiếu.</p>
 <input id="pq" placeholder="Tìm trong mục tiến độ, ví dụ: ký số, xét nghiệm, DLL20/10…" oninput="renderProgress()" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
 <div id="progList"></div>
+</div>
+
+<div class="wrap" id="saveData" style="display:none">
+<h2>Lưu dữ liệu họp như thế nào?</h2>
+<p><b>Hiện tại, thay đổi trong họp chỉ lưu trên máy họp này.</b> Bấm Lưu thay đổi thì ghi chú, thứ tự và cách chốt của từng biểu mẫu đều lưu lại trên máy đó, chưa lên mạng, chưa sang máy khác. Vì vậy buổi họp nên dùng một máy chính.</p>
+<p><b>Phương án 1 — Tải file tóm tắt rồi tự tải lên Drive:</b> bấm nút bên dưới để tải về một file tóm tắt dễ đọc, rồi tự tải file đó lên thư mục Drive chung với Phòng CNTT. File này để Phòng CNTT tổng hợp, không phải để lãnh đạo đọc trong họp.</p>
+<p><b>Phương án 2 — Nhờ Muse tải lên Drive giúp:</b> sau khi Drive đã kết nối, gửi file tóm tắt cho Muse, Muse sẽ tải file đó lên Drive cho bạn.</p>
+<p><b>Phương án 3 — Git làm gốc:</b> sau khi Phòng CNTT duyệt các quyết định đã tổng hợp, bản chốt sẽ được đẩy lên kho Git làm gốc, trang họp sẽ cập nhật theo bản đó.</p>
+<button class="primary" onclick="downloadSaveTxt()">Tải bản tóm tắt quyết định họp để gửi Phòng CNTT</button>
+<p style="font-size:13px;color:#555">File tóm tắt chỉ gồm các biểu mẫu đã chốt, đã sửa trong họp, có ghi chú hoặc được đánh dấu cần lưu ý, kèm từng bước ký và từng bước chuyển.</p>
 </div>
 <div class="modal" id="pdfModal" onclick="if(event.target===this) closePdfModal()">
 <div class="modalbox"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b id="pdfTitle">PDF</b><button onclick="closePdfModal()">Đóng cửa sổ PDF</button></div>
