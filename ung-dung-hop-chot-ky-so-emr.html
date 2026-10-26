@@ -131,8 +131,7 @@ function show(key){
  curEdit=JSON.parse(JSON.stringify(curEdit));
  renderDetail();
 }
-function renderDetail(){
- const d=curEdit; if(!d) return;
+function buildStepsHtml(d){
  let stepsHtml='';
  if(editMode){
   stepsHtml=d.steps.map((s,i)=>`<div class="step ${s.final?'final':''} ${d.decided?'decided':''}"><b>Bước ${i+1}</b>
@@ -140,16 +139,21 @@ function renderDetail(){
    <input value="${esc(s.action)}" oninput="upd(${i},'action',this.value)" placeholder="Làm gì ở bước này">
    <label>Loại bước:</label><select onchange="updKind(${i},this.value)">${['Bước ký','Bước chuyển','Tạo phiếu'].map(k=>`<option ${k===kindOf(s)?'selected':''}>${k}</option>`).join('')}</select><br>${kindOf(s)==='Bước ký'?`<label>Phương thức sử dụng chữ ký:</label><select onchange="upd(${i},'type',this.value)">${SIG_METHODS.map(t=>`<option ${t===sigOf(s)?'selected':''}>${t}</option>`).join('')}</select>`:kindOf(s)==='Bước chuyển'?`<label>Cách chuyển:</label><select onchange="updTransStep(${i},this.value)">${TRANSFER_STEPS.map(t=>`<option ${t===transOf(s)?'selected':''}>${t}</option>`).join('')}</select>`:`<span>Bước tạo phiếu, chưa phải bước ký.</span>`}<br>${kindOf(s)==='Bước ký'?`<label>Chuyển sau bước này sang bước tiếp theo bằng cách:</label><select onchange="updTransferMode(${i},this.value)">${['Chưa chốt','Chuyển theo nhóm','Chuyển trực tiếp','Trình ký lãnh đạo khoa','Trình ký lãnh đạo đơn vị','Chuyển trực lãnh đạo','Không chuyển sau bước này'].map(x=>`<option ${x===(s.transfer_mode||'Chưa chốt')?'selected':''}>${x}</option>`).join('')}</select>`:''}<div id="proc-${i}" style="font-size:13px;color:#555"><i>${procTextFor(d,s)}</i></div>
    <label><input type="checkbox" ${s.final?'checked':''} onchange="upd(${i},'final',this.checked)" style="width:auto"> Bước cuối — chốt</label><br>
-   <button onclick="moveStep(${i},-1)">Chuyển bước này lên trước</button> <button onclick="moveStep(${i},1)">Chuyển bước này xuống sau</button> <button onclick="delStep(${i})">Xóa bước này</button><br><label>Ghi chú cho bước này:</label><textarea oninput="updStepNote(${i},this.value)" placeholder="Diễn giải thêm cho bước này">${esc(s.note||'')}</textarea></div>${i<d.steps.length-1?arrowLabel(s,d.steps[i+1],d):''}`).join('');
+   <button onclick="moveStep(${i},-1)" title="Chuyển bước này lên trước" aria-label="Chuyển bước này lên trước" style="font-size:20px">↑</button> <button onclick="moveStep(${i},1)" title="Chuyển bước này xuống sau" aria-label="Chuyển bước này xuống sau" style="font-size:20px">↓</button> <button onclick="delStep(${i})">Xóa bước này</button><br><label>Ghi chú cho bước này:</label><textarea oninput="updStepNote(${i},this.value)" placeholder="Diễn giải thêm cho bước này">${esc(s.note||'')}</textarea></div>${i<d.steps.length-1?arrowLabel(s,d.steps[i+1],d):''}`).join('');
  } else {
   stepsHtml=d.steps.map((s,i)=>`<div class="step ${s.final?'final':''} ${!d.decided?'undecided':''} ${d.decided?'decided':''}"><b>Bước ${i+1} — ${kindOf(s)}</b><br><b>${esc(s.actor)}</b><br>${esc(s.action)}<br>${stepBadge(s)}${kindOf(s)==='Bước ký'?'<br><b>Phương thức sử dụng chữ ký:</b> '+esc(sigOf(s)):kindOf(s)==='Bước chuyển'?'<br><b>Cách chuyển:</b> '+esc(transOf(s)):''}${s.final?'<br><b>★ BƯỚC CUỐI — CHỐT</b>':''}${s.transfer?'<br><i>'+esc(s.transfer)+'</i>':''}${'<br><i>'+procTextFor(d,s)+'</i>'}${kindOf(s)==='Bước ký'&&(s.transfer_mode||!d.decided)?'<br><b>Chuyển sau bước này:</b> '+esc(s.transfer_mode||'Chưa chốt cách chuyển sau bước này — họp quyết'):''}<br><label>Ghi chú cho bước này:</label><textarea oninput="updStepNote(${i},this.value)" placeholder="Diễn giải thêm cho bước này">${esc(s.note||'')}</textarea></div>${i<d.steps.length-1?arrowLabel(s,d.steps[i+1],d):''}`).join('')||'<p>Chưa có người ký — họp cần xác nhận từ đầu.</p>';
  }
+ return stepsHtml;
+}
+function renderDetail(){
+ const d=curEdit; if(!d) return;
+ let stepsHtml=buildStepsHtml(d);
  $('#detail').style.display='block';
  $('#detail').innerHTML=`<h2>${d.stt} — ${esc(d.ten)} ${d.ma?('('+d.ma+')'):''} ${d.decided?'<span class="badge kyso">Đã chốt</span>':'<span class="badge chua">Chưa chốt</span>'}</h2>
  <p>File PDF: ${pagesPdfUrl(d)?`<button onclick="openPdfModal()">Mở PDF trong trang</button> ${esc(d.pdf)}`:'Chưa có PDF — chỉ có trong biên bản Word'} · Phạm vi: ${d.phamvi||'—'}</p> <p>Trạng thái phần mềm của biểu mẫu này xem ở mục quản lý yêu cầu kỹ thuật bên dưới (ghi nhận riêng, chưa đối chiếu 1-1 với danh sách này).</p>
  <p><b>${esc(d.note_decision||('Trạng thái Excel: '+d.excel_status))}</b></p><div id="warnBox"></div>
  <p>Bước chuyển (chuyển theo nhóm, chuyển trực tiếp, trình ký lãnh đạo khoa, trình ký lãnh đạo đơn vị) là bước riêng, tách khỏi phương thức sử dụng chữ ký (ký số, ảnh chữ ký, SignPad) của từng vị trí ký.</p>
- <div class="flow">${stepsHtml}</div>
+ <div class="flow" id="flow">${stepsHtml}</div>
  <div class="quickadd"><b>Thêm bước nhanh:</b> <input id="qaName" placeholder="Tên vị trí hoặc bước chuyển, ví dụ: Bác sĩ gây mê"> <select id="qaKind" onchange="qaKindChange()"><option>Bước ký</option><option>Bước chuyển</option><option>Tạo phiếu</option></select> <select id="qaType">${SIG_METHODS.map(t=>`<option>${t}</option>`).join('')}</select> <button class="primary" id="qaBtn" onclick="quickAdd()">Thêm vị trí ký</button> <span style="font-size:13px;color:#555">Thêm xong tự lưu trên máy họp khi bấm Lưu thay đổi, con trỏ quay về ô tên để thêm tiếp.</span></div>
  <button class="primary" onclick="toggleEdit()">${editMode?'Xem sơ đồ (tắt sửa)':'Sửa tên, loại bước và thứ tự từng bước'}</button>
  <button class="primary" onclick="saveCurrent()">Lưu thay đổi — chỉ lưu trên máy này</button>
@@ -167,7 +171,7 @@ function updTransStep(i,v){ const s=curEdit.steps[i]; s.type=v; s.transfer_mode=
 function updTransferMode(i,v){ curEdit.steps[i].transfer_mode=v; }
 function updTransfer(v){ curEdit.transfer=v; }
 function toggleEdit(){ editMode=!editMode; renderDetail(); }
-function moveStep(i,dir){ const j=i+dir; if(j<0||j>=curEdit.steps.length) return; const t=curEdit.steps[i]; curEdit.steps[i]=curEdit.steps[j]; curEdit.steps[j]=t; renderDetail(); }
+function moveStep(i,dir){ const j=i+dir; if(j<0||j>=curEdit.steps.length) return; const t=curEdit.steps[i]; curEdit.steps[i]=curEdit.steps[j]; curEdit.steps[j]=t; const flow=document.getElementById('flow'); if(!flow){ renderDetail(); return; } flow.innerHTML=buildStepsHtml(curEdit); const wb=document.getElementById('warnBox'); if(wb){ const ws=orderWarnings(curEdit.steps); wb.innerHTML=ws.length?('<div style="background:#fffbe6;border:1px solid #eab308;border-radius:8px;padding:10px">'+ws.map(w=>'<p>⚠ '+w+'</p>').join('')+'</div>'):''; } const stepsEls=flow.querySelectorAll('.step'); const moved=stepsEls[j]; if(moved){ const bs=moved.querySelectorAll('button'); const b=dir<0?bs[0]:bs[1]; if(b) b.focus(); } }
 function delStep(i){ if(!confirm('Xóa vị trí này khỏi luồng ký?')) return; curEdit.steps.splice(i,1); renderDetail(); }
 function addStep(){ curEdit.steps.push({actor:'Vị trí mới',action:'',type:'Ký số',transfer:'',final:false}); renderDetail(); }
 function updStepNote(i,v){ curEdit.steps[i].note=v; }
