@@ -52,11 +52,11 @@ textarea{width:100%;min-height:60px;padding:8px;border:1px solid #ccc;border-rad
 <div class="card"><b id="cTodo"></b>Chưa chốt — cần họp quyết</div>
 <div class="card"><b id="cEdited"></b>Đã sửa trong họp (chưa đẩy lên Git)</div>
 </div>
-<div class="savebox">Thay đổi lưu trên máy họp này. Cuối buổi họp, Phòng CNTT tổng hợp lại.</div>
+<div class="savebox">Thay đổi lưu trên máy này cho tới khi bấm Lưu lên Google Drive. <span id="driveMsg"></span></div>
 <div class="controls">
 <input id="q" placeholder="Tìm theo tên, mã, ví dụ: 01/BV2, phẫu thuật, chăm sóc…">
 <button data-f="all" class="on">Xem tất cả biểu mẫu</button><button data-f="done">Xem biểu mẫu đã chốt</button><button data-f="todo">Xem biểu mẫu chưa chốt</button><button data-f="missing">Xem biểu mẫu Excel còn thiếu chức năng</button><button data-f="notes">Xem biểu mẫu có ghi chú họp</button>
-<button onclick="window.print()">In danh sách đang xem</button><button onclick="showProgress()">Xem mục quản lý yêu cầu kỹ thuật</button><button onclick="showSave()">Xem phương án lưu dữ liệu</button>
+<button onclick="window.print()">In danh sách đang xem</button><button onclick="showProgress()">Xem mục quản lý yêu cầu kỹ thuật</button><button onclick="showSave()">Xem phương án lưu dữ liệu</button><button class="primary" onclick="saveToDrive()">Lưu lên Google Drive</button><button onclick="loadFromDrive()">Tải dữ liệu từ Google Drive</button>
 </div>
 <div id="detail"></div>
 <div class="list" id="list"></div>
@@ -64,6 +64,7 @@ textarea{width:100%;min-height:60px;padding:8px;border:1px solid #ccc;border-rad
 </div>
 <script src="data.js?v=20261027a"></script>
 <script src="categories.js?v=20261027a"></script>
+<script src="config.js?v=20261027a"></script>
 <script>
 const $=s=>document.querySelector(s);
 let filter='all', curKey=null, curEdit=null, editMode=false;
@@ -129,6 +130,11 @@ function render(){
  $('#cTodo').textContent=DATA.filter(d=>!getForm(d.key).decided).length;
  $('#cEdited').textContent=Object.keys(edits).length;
 }
+function collectDriveData(){ const read=k=>{ try{ return JSON.parse(localStorage.getItem(k)||'{}'); }catch(e){ return {}; } }; return {savedAt:new Date().toISOString(),edits:read('emr_edits'),notes:read('emr_notes'),flags:read('emr_flags'),comments:read('emr_comments')}; }
+function downloadDriveData(){ const data=collectDriveData(); const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='emr-hop-data.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+function setDriveMsg(t){ const el=document.getElementById('driveMsg'); if(el) el.textContent=t; }
+async function saveToDrive(){ const data=collectDriveData(); if(typeof DRIVE_SAVE_URL==='undefined'||!DRIVE_SAVE_URL){ setDriveMsg('Chưa nối Google Drive — dữ liệu vẫn lưu trên máy này. Bấm Tải file dữ liệu để gửi về Phòng CNTT, hoặc gửi URL Web app Drive cho Muse để gắn vào.'); downloadDriveData(); return; } try{ const r=await fetch(DRIVE_SAVE_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)}); const j=await r.json(); if(j&&j.ok){ setDriveMsg('Đã lưu lên Google Drive lúc '+new Date().toLocaleString('vi-VN')+'.'); } else { setDriveMsg('Google Drive chưa xác nhận lưu — kiểm tra file emr-hop-data.json trên Drive, nếu chưa thấy thì bấm Tải file dữ liệu để gửi về Phòng CNTT.'); downloadDriveData(); } }catch(e){ setDriveMsg('Đã gửi lên Google Drive nhưng chưa xác nhận được từ máy chủ (có thể do trình duyệt chặn xác nhận) — kiểm tra file emr-hop-data.json trên Drive, nếu chưa thấy thì bấm Tải file dữ liệu để gửi về Phòng CNTT.'); } }
+async function loadFromDrive(){ if(typeof DRIVE_SAVE_URL==='undefined'||!DRIVE_SAVE_URL){ setDriveMsg('Chưa nối Google Drive — chưa tải được dữ liệu từ Drive.'); return; } if(!confirm('Tải dữ liệu từ Google Drive sẽ thay thế dữ liệu trên máy này bằng dữ liệu mới nhất trên Drive. Tiếp tục?')) return; try{ const r=await fetch(DRIVE_SAVE_URL); const data=await r.json(); if(!data||data.ok===false){ setDriveMsg('Chưa có dữ liệu trên Google Drive để tải.'); return; } if(data.edits) localStorage.setItem('emr_edits',JSON.stringify(data.edits)); if(data.notes) localStorage.setItem('emr_notes',JSON.stringify(data.notes)); if(data.flags) localStorage.setItem('emr_flags',JSON.stringify(data.flags)); if(data.comments) localStorage.setItem('emr_comments',JSON.stringify(data.comments)); edits=JSON.parse(localStorage.getItem('emr_edits')||'{}'); setDriveMsg('Đã tải dữ liệu mới nhất từ Google Drive lúc '+new Date().toLocaleString('vi-VN')+'.'); render(); if(curKey) show(curKey); }catch(e){ setDriveMsg('Không tải được dữ liệu từ Google Drive — kiểm tra lại đường link Web app Drive.'); } }
 let gopyDraft={};
 function getComments(key){ try{ const all=JSON.parse(localStorage.getItem('emr_comments')||'{}'); return all[key]||[]; }catch(e){ return []; } }
 function renderGopyList(){ const el=document.getElementById('gopyList'); if(!el) return; const list=getComments(curKey); el.innerHTML=list.length?list.map(c=>`<div style="border:1px solid #cbd5e1;border-radius:8px;padding:10px;margin:8px 0"><b>${esc(c.nguoi)}</b> <span style="color:#555;font-size:13px">${esc(c.thoiGian)}</span><br>${esc(c.noiDung)}</div>`).join(''):'<p style="color:#555">Chưa có góp ý nào cho biểu mẫu này.</p>'; }
