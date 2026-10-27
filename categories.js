@@ -1,0 +1,8 @@
+const SIG_METHODS=['Ký số','Ảnh chữ ký','SignPad','Chưa rõ'];
+const THAO_TAC_CATEGORIES=['Ký','Trình trực lãnh đạo','Trình lãnh đạo phòng','Chuyển nhóm người dùng','Chuyển trực tiếp','Khác','Chuyển — chưa rõ cách','Tạo phiếu'];
+const STEP_CATEGORIES=THAO_TAC_CATEGORIES;
+const TRANSFER_STEPS=['Trình trực lãnh đạo','Trình lãnh đạo phòng','Chuyển nhóm người dùng','Chuyển trực tiếp','Chuyển — chưa rõ cách','Khác'];
+const TRANSFERS=['Chưa chốt','Trình trực lãnh đạo','Trình lãnh đạo phòng','Chuyển nhóm người dùng','Chuyển trực tiếp','Chuyển — chưa rõ cách','Khác'];
+const OUTGOING_TRANSFERS=['Chưa chốt','Trình trực lãnh đạo','Trình lãnh đạo phòng','Chuyển nhóm người dùng','Chuyển trực tiếp','Chuyển — chưa rõ cách','Khác','Không chuyển sau thao tác này'];
+const OLD_CATEGORY_TO_NEW={'Chuyển trực lãnh đạo':'Trình trực lãnh đạo','Chuyển lãnh đạo phòng':'Trình lãnh đạo phòng'};
+const CATEGORY_NOTES={'Ký':'Ký: người thao tác ký theo hình thức thể hiện ở dưới.','Trình trực lãnh đạo':'Trình trực lãnh đạo: gửi thẳng lên lãnh đạo để xin ý kiến; lãnh đạo ký số ở thao tác sau.','Trình lãnh đạo phòng':'Trình lãnh đạo phòng: gửi lên lãnh đạo phòng/đơn vị; lãnh đạo ký số ở thao tác sau.','Chuyển nhóm người dùng':'Chuyển nhóm người dùng: vào danh sách chung của nhóm, cả nhóm cùng thấy, không giao riêng 1 người.','Chuyển trực tiếp':'Chuyển trực tiếp: giao đúng tên 1 người cụ thể.','Khác':'Khác: ghi rõ cách chuyển ở ô Ghi chú cho thao tác này.','Chuyển — chưa rõ cách':'Chuyển — chưa rõ cách: bắt buộc ghi rõ chuyển cho ai ở ô Ghi chú cho thao tác này.','Tạo phiếu':'Tạo phiếu: người tạo lập phiếu, điền thông tin, chưa phải thao tác ký.'};
