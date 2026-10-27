@@ -52,11 +52,11 @@ textarea{width:100%;min-height:60px;padding:8px;border:1px solid #ccc;border-rad
 <div class="card"><b id="cTodo"></b>Chưa chốt — cần họp quyết</div>
 <div class="card"><b id="cEdited"></b>Đã sửa trong họp (chưa đẩy lên Git)</div>
 </div>
-<div class="savebox">Thay đổi lưu trên máy này cho tới khi bấm Lưu lên Google Drive. <span id="driveMsg"></span></div>
+<div class="savebox"><span id="driveMsg">Đang tải dữ liệu mới nhất...</span></div>
 <div class="controls">
 <input id="q" placeholder="Tìm theo tên, mã, ví dụ: 01/BV2, phẫu thuật, chăm sóc…">
 <button data-f="all" class="on">Xem tất cả biểu mẫu</button><button data-f="done">Xem biểu mẫu đã chốt</button><button data-f="todo">Xem biểu mẫu chưa chốt</button><button data-f="missing">Xem biểu mẫu Excel còn thiếu chức năng</button><button data-f="notes">Xem biểu mẫu có ghi chú họp</button>
-<button onclick="window.print()">In danh sách đang xem</button><button onclick="showProgress()">Xem mục quản lý yêu cầu kỹ thuật</button><button onclick="showSave()">Xem phương án lưu dữ liệu</button><button class="primary" onclick="saveToDrive()">Lưu lên Google Drive</button><button onclick="loadFromDrive()">Tải dữ liệu từ Google Drive</button>
+<button onclick="window.print()">In danh sách đang xem</button><button onclick="showProgress()">Xem mục quản lý yêu cầu kỹ thuật</button>
 </div>
 <div id="detail"></div>
 <div class="list" id="list"></div>
@@ -68,8 +68,8 @@ textarea{width:100%;min-height:60px;padding:8px;border:1px solid #ccc;border-rad
 <script>
 const $=s=>document.querySelector(s);
 let filter='all', curKey=null, curEdit=null, editMode=false;
-const notes=JSON.parse(localStorage.getItem('emr_notes')||'{}');
-const flags=JSON.parse(localStorage.getItem('emr_flags')||'{}');
+let notes=JSON.parse(localStorage.getItem('emr_notes')||'{}');
+let flags=JSON.parse(localStorage.getItem('emr_flags')||'{}');
 let edits=JSON.parse(localStorage.getItem('emr_edits')||'{}');
 function mapType(t){t=t||''; if(t.includes('Ký số')) return 'Ký số'; if(t.includes('Ảnh')) return 'Ảnh chữ ký'; if(t.includes('SignPad')) return 'SignPad'; return t||'Chưa rõ';}
 function baseSteps(d){ if(d.steps) return JSON.parse(JSON.stringify(d.steps)); return d.signers.map((s,idx,arr)=>({actor:s.actor,action:'',type:mapType(s.type),category:'Ký',transfer:'',transfer_mode:(idx===arr.length-1?'Không chuyển sau thao tác này':'Chưa chốt'),final:false})); }
@@ -133,12 +133,14 @@ function render(){
 function collectDriveData(){ const read=k=>{ try{ return JSON.parse(localStorage.getItem(k)||'{}'); }catch(e){ return {}; } }; return {savedAt:new Date().toISOString(),edits:read('emr_edits'),notes:read('emr_notes'),flags:read('emr_flags'),comments:read('emr_comments')}; }
 function downloadDriveData(){ const data=collectDriveData(); const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='emr-hop-data.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
 function setDriveMsg(t){ const el=document.getElementById('driveMsg'); if(el) el.textContent=t; }
-async function saveToDrive(){ const data=collectDriveData(); if(typeof DRIVE_SAVE_URL==='undefined'||!DRIVE_SAVE_URL){ setDriveMsg('Chưa nối Google Drive — dữ liệu vẫn lưu trên máy này. Bấm Tải file dữ liệu để gửi về Phòng CNTT, hoặc gửi URL Web app Drive cho Muse để gắn vào.'); downloadDriveData(); return; } try{ const r=await fetch(DRIVE_SAVE_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)}); const j=await r.json(); if(j&&j.ok){ setDriveMsg('Đã lưu lên Google Drive lúc '+new Date().toLocaleString('vi-VN')+'.'); } else { setDriveMsg('Google Drive chưa xác nhận lưu — kiểm tra file emr-hop-data.json trên Drive, nếu chưa thấy thì bấm Tải file dữ liệu để gửi về Phòng CNTT.'); downloadDriveData(); } }catch(e){ setDriveMsg('Đã gửi lên Google Drive nhưng chưa xác nhận được từ máy chủ (có thể do trình duyệt chặn xác nhận) — kiểm tra file emr-hop-data.json trên Drive, nếu chưa thấy thì bấm Tải file dữ liệu để gửi về Phòng CNTT.'); } }
-async function loadFromDrive(){ if(typeof DRIVE_SAVE_URL==='undefined'||!DRIVE_SAVE_URL){ setDriveMsg('Chưa nối Google Drive — chưa tải được dữ liệu từ Drive.'); return; } if(!confirm('Tải dữ liệu từ Google Drive sẽ thay thế dữ liệu trên máy này bằng dữ liệu mới nhất trên Drive. Tiếp tục?')) return; try{ const r=await fetch(DRIVE_SAVE_URL); const data=await r.json(); if(!data||data.ok===false){ setDriveMsg('Chưa có dữ liệu trên Google Drive để tải.'); return; } if(data.edits) localStorage.setItem('emr_edits',JSON.stringify(data.edits)); if(data.notes) localStorage.setItem('emr_notes',JSON.stringify(data.notes)); if(data.flags) localStorage.setItem('emr_flags',JSON.stringify(data.flags)); if(data.comments) localStorage.setItem('emr_comments',JSON.stringify(data.comments)); edits=JSON.parse(localStorage.getItem('emr_edits')||'{}'); setDriveMsg('Đã tải dữ liệu mới nhất từ Google Drive lúc '+new Date().toLocaleString('vi-VN')+'.'); render(); if(curKey) show(curKey); }catch(e){ setDriveMsg('Không tải được dữ liệu từ Google Drive — kiểm tra lại đường link Web app Drive.'); } }
+async function saveToDrive(){ const data=collectDriveData(); if(typeof DRIVE_SAVE_URL==='undefined'||!DRIVE_SAVE_URL){ setDriveMsg('Chưa nối máy chủ lưu trữ — thay đổi vẫn lưu trên máy này.'); return; } try{ const r=await fetch(DRIVE_SAVE_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)}); const j=await r.json(); if(j&&j.ok){ setDriveMsg('Đã lưu lúc '+new Date().toLocaleString('vi-VN')+'.'); } else { setDriveMsg('Chưa lưu được — dữ liệu vẫn ở trên máy này, sẽ thử lại khi bạn sửa tiếp.'); } }catch(e){ setDriveMsg('Chưa lưu được — dữ liệu vẫn ở trên máy này, sẽ thử lại khi bạn sửa tiếp.'); } }
+let driveTimer=null;
+function scheduleDriveSave(){ if(typeof DRIVE_SAVE_URL==='undefined'||!DRIVE_SAVE_URL){ setDriveMsg('Chưa nối máy chủ lưu trữ — thay đổi vẫn lưu trên máy này.'); return; } setDriveMsg('Đang lưu...'); if(driveTimer) clearTimeout(driveTimer); driveTimer=setTimeout(()=>{ saveToDrive(); },800); }
+async function initDrive(){ if(typeof DRIVE_SAVE_URL!=='undefined'&&DRIVE_SAVE_URL){ setDriveMsg('Đang tải dữ liệu mới nhất...'); try{ const r=await fetch(DRIVE_SAVE_URL); const data=await r.json(); if(data&&data.ok!==false){ if(data.edits) localStorage.setItem('emr_edits',JSON.stringify(data.edits)); if(data.notes) localStorage.setItem('emr_notes',JSON.stringify(data.notes)); if(data.flags) localStorage.setItem('emr_flags',JSON.stringify(data.flags)); if(data.comments) localStorage.setItem('emr_comments',JSON.stringify(data.comments)); edits=JSON.parse(localStorage.getItem('emr_edits')||'{}'); notes=JSON.parse(localStorage.getItem('emr_notes')||'{}'); flags=JSON.parse(localStorage.getItem('emr_flags')||'{}'); setDriveMsg('Đã tải dữ liệu mới nhất.'); } else { setDriveMsg('Chưa có dữ liệu trên máy chủ — đang dùng dữ liệu trên máy này.'); } }catch(e){ setDriveMsg('Không tải được dữ liệu mới nhất — đang dùng dữ liệu trên máy này.'); } } else { setDriveMsg('Chưa nối máy chủ lưu trữ — đang dùng dữ liệu trên máy này.'); } render(); }
 let gopyDraft={};
 function getComments(key){ try{ const all=JSON.parse(localStorage.getItem('emr_comments')||'{}'); return all[key]||[]; }catch(e){ return []; } }
 function renderGopyList(){ const el=document.getElementById('gopyList'); if(!el) return; const list=getComments(curKey); el.innerHTML=list.length?list.map(c=>`<div style="border:1px solid #cbd5e1;border-radius:8px;padding:10px;margin:8px 0"><b>${esc(c.nguoi)}</b> <span style="color:#555;font-size:13px">${esc(c.thoiGian)}</span><br>${esc(c.noiDung)}</div>`).join(''):'<p style="color:#555">Chưa có góp ý nào cho biểu mẫu này.</p>'; }
-function submitGopy(){ const n=document.getElementById('gopyName'); const t=document.getElementById('gopyText'); if(!n||!t||!n.value.trim()||!t.value.trim()){ alert('Nhập tên người góp ý và nội dung góp ý.'); return; } const all=JSON.parse(localStorage.getItem('emr_comments')||'{}'); if(!all[curKey]) all[curKey]=[]; all[curKey].push({nguoi:n.value.trim(),noiDung:t.value.trim(),thoiGian:new Date().toLocaleString('vi-VN')}); localStorage.setItem('emr_comments',JSON.stringify(all)); gopyDraft[curKey]={name:'',text:''}; const m=document.getElementById('gopyMsg'); if(m) m.textContent='Đã ghi nhận góp ý. Hiện góp ý đang lưu trên máy này, chưa lưu tập trung — bấm Tải file góp ý để gửi về Phòng CNTT.'; renderGopyList(); n.value=''; t.value=''; updateCounts(); render(); }
+function submitGopy(){ const n=document.getElementById('gopyName'); const t=document.getElementById('gopyText'); if(!n||!t||!n.value.trim()||!t.value.trim()){ alert('Nhập tên người góp ý và nội dung góp ý.'); return; } const all=JSON.parse(localStorage.getItem('emr_comments')||'{}'); if(!all[curKey]) all[curKey]=[]; all[curKey].push({nguoi:n.value.trim(),noiDung:t.value.trim(),thoiGian:new Date().toLocaleString('vi-VN')}); localStorage.setItem('emr_comments',JSON.stringify(all)); gopyDraft[curKey]={name:'',text:''}; const m=document.getElementById('gopyMsg'); if(m) m.textContent='Đã ghi nhận góp ý. Hiện góp ý đang lưu trên máy này, chưa lưu tập trung — bấm Tải file góp ý để gửi về Phòng CNTT.'; renderGopyList(); n.value=''; t.value=''; updateCounts(); render(); scheduleDriveSave(); }
 function downloadGopy(){ const all=JSON.parse(localStorage.getItem('emr_comments')||'{}'); const blob=new Blob(['const COMMENTS = '+JSON.stringify(all,null,2)+';\n'],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gopy-emr.js'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
 function show(key){
  curKey=key; editMode=false; curEdit=getForm(key);
@@ -171,7 +173,7 @@ function renderDetail(){
  <button onclick="resetCurrent()">Khôi phục gốc (Excel + biên bản 23/10)</button>
  <p id="saveMsg" style="color:#14532d"></p>
  <label><input type="checkbox" ${flags[curKey]?'checked':''} onchange="toggleFlag(this.checked)"> Đánh dấu: nội dung cần lưu ý trong họp</label><br><br>
- <label>Ghi chú họp cho biểu mẫu này (chốt, sửa nội dung hay ghi chú đều lưu chung khi bấm Lưu):</label><br><textarea id="note" oninput="notes[curKey]=this.value;localStorage.setItem('emr_notes',JSON.stringify(notes))">${esc(notes[curKey]||'')}</textarea>
+ <label>Ghi chú họp cho biểu mẫu này (chốt, sửa nội dung hay ghi chú đều lưu chung khi bấm Lưu):</label><br><textarea id="note" oninput="notes[curKey]=this.value;localStorage.setItem('emr_notes',JSON.stringify(notes));scheduleDriveSave()">${esc(notes[curKey]||'')}</textarea>
  <div style="border-top:2px solid #0b4f6c;margin-top:16px;padding-top:12px"><h3>Góp ý cho biểu mẫu này</h3>
  <label>Tên người góp ý:</label><br><input id="gopyName" value="${esc((gopyDraft[curKey]||{}).name||'')}" oninput="gopyDraft[curKey]={name:this.value,text:(gopyDraft[curKey]||{}).text||''}" placeholder="Nhập tên người góp ý" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:8px;box-sizing:border-box"><br><br>
  <label>Nội dung góp ý:</label><br><textarea id="gopyText" oninput="gopyDraft[curKey]={name:(gopyDraft[curKey]||{}).name||'',text:this.value}" placeholder="Nhập nội dung góp ý">${esc((gopyDraft[curKey]||{}).text||'')}</textarea><br>
@@ -203,15 +205,15 @@ function saveCurrent(){
  const note=$('#note')?$('#note').value:''; if(note!==undefined) {notes[curKey]=note; localStorage.setItem('emr_notes',JSON.stringify(notes));}
  edits[curKey]={steps:curEdit.steps, transfer:curEdit.transfer, decided:curEdit.decided, savedAt:new Date().toISOString()};
  localStorage.setItem('emr_edits',JSON.stringify(edits));
- $('#saveMsg').textContent='Đã lưu trên máy này lúc '+new Date().toLocaleString('vi-VN')+'. Cuối buổi họp, Phòng CNTT tổng hợp lại.';
+ $('#saveMsg').textContent='Đã lưu lúc '+new Date().toLocaleString('vi-VN')+'.'; scheduleDriveSave();
  updateCounts();
 }
 function markDecided(){ curEdit.decided=true; saveCurrent(); renderDetail(); }
-function resetCurrent(){ delete edits[curKey]; localStorage.setItem('emr_edits',JSON.stringify(edits)); show(curKey); render(); }
-function toggleFlag(v){ flags[curKey]=v; localStorage.setItem('emr_flags',JSON.stringify(flags)); updateCounts(); }
+function resetCurrent(){ delete edits[curKey]; localStorage.setItem('emr_edits',JSON.stringify(edits)); show(curKey); render(); scheduleDriveSave(); }
+function toggleFlag(v){ flags[curKey]=v; localStorage.setItem('emr_flags',JSON.stringify(flags)); updateCounts(); scheduleDriveSave(); }
 document.querySelectorAll('.controls button[data-f]').forEach(b=>b.onclick=()=>{filter=b.dataset.f;document.querySelectorAll('.controls button[data-f]').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();});
 $('#q').oninput=render;
-render();
+initDrive();
 </script>
 <p style="color:#555">Bản final — 27/10/2026 · 84 biểu mẫu · 38 đã chốt (5 chốt 23/10 + 33 tự chốt 1 chữ ký) · 46 chưa chốt · Ô đã chốt tô màu xanh · Cách chuyển chọn riêng cho từng thao tác, không áp cho cả biểu mẫu · Thao tác chuyển tách khỏi hình thức thể hiện của chữ ký · Ghi chú thao tác 2 của 01/BV2 nằm ở ô Ghi chú cho thao tác này.</p>
 <div class="wrap" id="progress" style="display:none">
@@ -222,15 +224,6 @@ render();
 <div id="progList"></div>
 </div>
 
-<div class="wrap" id="saveData" style="display:none">
-<h2>Lưu dữ liệu họp như thế nào?</h2>
-<p><b>Hiện tại, thay đổi trong họp chỉ lưu trên máy họp này.</b> Bấm Lưu thay đổi thì ghi chú, thứ tự và cách chốt của từng biểu mẫu đều lưu lại trên máy đó, chưa lên mạng, chưa sang máy khác. Vì vậy buổi họp nên dùng một máy chính.</p>
-<p><b>Phương án 1 — Tải file tóm tắt rồi tự tải lên Drive:</b> bấm nút bên dưới để tải về một file tóm tắt dễ đọc, rồi tự tải file đó lên thư mục Drive chung với Phòng CNTT. File này để Phòng CNTT tổng hợp, không phải để lãnh đạo đọc trong họp.</p>
-<p><b>Phương án 2 — Nhờ Muse tải lên Drive giúp:</b> sau khi Drive đã kết nối, gửi file tóm tắt cho Muse, Muse sẽ tải file đó lên Drive cho bạn.</p>
-<p><b>Phương án 3 — Git làm gốc:</b> sau khi Phòng CNTT duyệt các quyết định đã tổng hợp, bản chốt sẽ được đẩy lên kho Git làm gốc, trang họp sẽ cập nhật theo bản đó.</p>
-<button class="primary" onclick="downloadSaveTxt()">Tải bản tóm tắt quyết định họp để gửi Phòng CNTT</button>
-<p style="font-size:13px;color:#555">File tóm tắt chỉ gồm các biểu mẫu đã chốt, đã sửa trong họp, có ghi chú hoặc được đánh dấu cần lưu ý, kèm từng bước ký và từng bước chuyển.</p>
-</div>
 <div class="modal" id="pdfModal" onclick="if(event.target===this) closePdfModal()">
 <div class="modalbox"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b id="pdfTitle">PDF</b><button onclick="closePdfModal()">Đóng cửa sổ PDF</button></div>
 <iframe id="pdfFrame" src=""></iframe>
